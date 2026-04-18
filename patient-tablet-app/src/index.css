@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Tajawal', 'Segoe UI', sans-serif;
+  color: #1a2a3a;
+  background-color: #ffffff;
+  background-image: radial-gradient(
+      ellipse 120% 80% at 100% 0%,
+      rgba(0, 158, 219, 0.07),
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse 80% 60% at 0% 100%,
+      rgba(0, 158, 219, 0.05),
+      transparent 45%
+    ),
+    linear-gradient(180deg, #ffffff 0%, #fafcfe 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(0, 158, 219, 0.2);
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-[28px] border border-line bg-white/90 shadow-ambient backdrop-blur-xl;
+  }
+
+  .surface-panel {
+    @apply rounded-[24px] border border-line bg-white/95 shadow-sm;
+  }
+
+  .glass-card {
+    @apply surface-card;
+  }
+
+  .glass-panel {
+    @apply surface-panel;
+  }
+}

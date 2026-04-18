@@ -1,0 +1,368 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #1a2a3a;
+  --color-secondary: #009edb;
+  --color-bg: #f4f6f8;
+  --color-card: #ffffff;
+  --color-text: #0d1b2a;
+  --color-border: #d0d7de;
+
+  font-family: 'IBM Plex Sans Arabic', 'Segoe UI', sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  min-width: 320px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  direction: rtl;
+  background:
+    radial-gradient(circle at top right, rgba(0, 158, 219, 0.08), transparent 22%),
+    radial-gradient(circle at bottom left, rgba(26, 42, 58, 0.06), transparent 26%),
+    linear-gradient(180deg, #f4f6f8 0%, #f4f6f8 100%);
+}
+
+/* Main content canvas: readable text in light + dark (sidebar is outside .app-canvas) */
+html {
+  --canvas-fg: #0d1b2a;
+  --canvas-fg-muted: rgba(13, 27, 42, 0.78);
+  --canvas-fg-subtle: rgba(13, 27, 42, 0.58);
+  --canvas-surface: #ffffff;
+  --canvas-surface-soft: #f4f6f8;
+  --canvas-border: #d0d7de;
+}
+
+html[data-theme='dark'] {
+  /* App shell + typography — must stay in sync with canvas tokens or text looks “washed out” */
+  --color-bg: #1a2a3a;
+  --color-card: rgba(255, 255, 255, 0.08);
+  --color-text: #f4f6f8;
+  --color-border: rgba(208, 215, 222, 0.4);
+
+  --canvas-fg: #f4f6f8;
+  --canvas-fg-muted: rgba(244, 246, 248, 0.82);
+  --canvas-fg-subtle: rgba(244, 246, 248, 0.65);
+  --canvas-surface: rgba(255, 255, 255, 0.11);
+  --canvas-surface-soft: rgba(255, 255, 255, 0.07);
+  --canvas-border: rgba(208, 215, 222, 0.4);
+}
+
+:root[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at top right, rgba(0, 158, 219, 0.12), transparent 20%),
+    radial-gradient(circle at bottom left, rgba(26, 42, 58, 0.5), transparent 28%),
+    linear-gradient(180deg, #1a2a3a 0%, #1a2a3a 100%);
+  color: var(--canvas-fg);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(0, 158, 219, 0.22);
+  color: var(--color-text);
+}
+
+:root[data-theme='dark'] ::selection {
+  background: rgba(0, 158, 219, 0.35);
+  color: #f4f6f8;
+}
+
+@layer components {
+  .dashboard-card {
+    @apply rounded-[30px] border border-slateAdmin-200 bg-white shadow-dashboard backdrop-blur-xl;
+  }
+
+  .dashboard-panel {
+    @apply rounded-[24px] border border-slateAdmin-200 bg-white shadow-[0_14px_40px_rgba(26,42,58,0.06)];
+  }
+
+  .dashboard-hero {
+    @apply dashboard-card relative overflow-hidden;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(244, 246, 248, 0.98) 100%),
+      radial-gradient(circle at top right, rgba(0, 158, 219, 0.1), transparent 28%);
+  }
+
+  .dashboard-hero::before {
+    content: '';
+    position: absolute;
+    inset-inline-end: -4rem;
+    top: -5rem;
+    width: 18rem;
+    height: 18rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle, rgba(0, 158, 219, 0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .dashboard-hero::after {
+    content: '';
+    position: absolute;
+    inset-inline-start: 8%;
+    bottom: -7rem;
+    width: 15rem;
+    height: 15rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle, rgba(26, 42, 58, 0.08) 0%, transparent 72%);
+    pointer-events: none;
+  }
+
+  .glass-badge {
+    @apply inline-flex items-center gap-2 rounded-full border border-slateAdmin-200 bg-white px-4 py-2 text-xs font-semibold tracking-[0.18em] text-slateAdmin-500 shadow-[0_10px_30px_rgba(26,42,58,0.06)];
+  }
+
+  .button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-slateAdmin-950 px-5 py-3.5 font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:opacity-95;
+  }
+
+  .button-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slateAdmin-200 bg-white px-4 py-3 font-semibold text-slateAdmin-800 transition duration-200 hover:-translate-y-0.5 hover:border-slateAdmin-300 hover:bg-slateAdmin-50;
+  }
+
+  .button-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slateAdmin-200 bg-slateAdmin-50 px-4 py-3 font-semibold text-slateAdmin-900 transition duration-200 hover:-translate-y-0.5 hover:bg-slateAdmin-100;
+  }
+
+  .field-input {
+    @apply h-14 w-full rounded-2xl border border-slateAdmin-200 bg-white px-4 text-slateAdmin-900 outline-none transition duration-200 placeholder:text-slateAdmin-400 focus:border-brandSecondary focus:ring-4 focus:ring-[rgba(0,158,219,0.15)];
+  }
+
+  .field-select {
+    @apply field-input appearance-none;
+  }
+
+  .toolbar-panel {
+    @apply dashboard-card p-4 sm:p-5;
+  }
+
+  .summary-chip {
+    @apply inline-flex items-center gap-2 rounded-2xl border border-slateAdmin-200 bg-white px-4 py-3 text-sm font-medium text-slateAdmin-700 shadow-[0_12px_32px_rgba(26,42,58,0.05)];
+  }
+
+  .dashboard-table {
+    @apply w-full border-separate border-spacing-y-3 text-right;
+  }
+
+  .dashboard-table thead th {
+    @apply px-5 pb-2 text-xs font-bold tracking-[0.12em] text-slateAdmin-500;
+  }
+
+  .dashboard-table tbody tr {
+    @apply transition duration-200;
+  }
+
+  .dashboard-table tbody tr:hover {
+    transform: translateY(-1px);
+  }
+
+  .dashboard-table tbody td {
+    @apply border-y border-slateAdmin-200 bg-white px-5 py-5 align-middle text-sm text-slateAdmin-600;
+  }
+
+  .dashboard-table tbody td:first-child {
+    @apply rounded-r-[24px] border-r;
+  }
+
+  .dashboard-table tbody td:last-child {
+    @apply rounded-l-[24px] border-l;
+  }
+
+  .table-empty-state {
+    @apply rounded-[28px] border border-dashed border-slateAdmin-200 bg-slateAdmin-50 px-6 py-12 text-center;
+  }
+
+  /** Main workspace: force palette contrast (fixes invisible text on cards) */
+  .app-canvas {
+    color: var(--canvas-fg);
+  }
+
+  .canvas-card {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--canvas-border);
+    background-color: var(--canvas-surface);
+    color: var(--canvas-fg);
+    box-shadow: 0 8px 40px rgba(26, 42, 58, 0.07);
+  }
+
+  .canvas-card-muted {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--canvas-border);
+    background-color: var(--canvas-surface-soft);
+    color: var(--canvas-fg);
+  }
+
+  .canvas-text {
+    color: var(--canvas-fg);
+  }
+
+  .canvas-text-muted {
+    color: var(--canvas-fg-muted);
+  }
+
+  .canvas-text-subtle {
+    color: var(--canvas-fg-subtle);
+  }
+
+  .metric-card-accent {
+    border-width: 1px;
+    border-style: solid;
+    border-color: rgba(0, 158, 219, 0.28);
+    background: linear-gradient(135deg, #ffffff 0%, rgba(0, 158, 219, 0.07) 100%);
+    color: var(--canvas-fg);
+    box-shadow: 0 4px 24px rgba(26, 42, 58, 0.06);
+  }
+
+  html[data-theme='dark'] .metric-card-accent {
+    border-color: rgba(0, 158, 219, 0.35);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(0, 158, 219, 0.14) 100%);
+  }
+}
+
+:root[data-theme='dark'] .dashboard-card {
+  border-color: rgba(208, 215, 222, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 20px 55px rgba(13, 27, 42, 0.35);
+}
+
+:root[data-theme='dark'] .dashboard-panel,
+:root[data-theme='dark'] .toolbar-panel,
+:root[data-theme='dark'] .table-empty-state {
+  border-color: rgba(208, 215, 222, 0.32);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 42px rgba(13, 27, 42, 0.28);
+}
+
+:root[data-theme='dark'] .dashboard-hero {
+  background:
+    linear-gradient(135deg, rgba(26, 42, 58, 0.96) 0%, rgba(26, 42, 58, 0.88) 100%),
+    radial-gradient(circle at top right, rgba(0, 158, 219, 0.14), transparent 28%);
+}
+
+:root[data-theme='dark'] .glass-badge,
+:root[data-theme='dark'] .summary-chip {
+  border-color: rgba(208, 215, 222, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f6f8;
+}
+
+:root[data-theme='dark'] .button-secondary {
+  border-color: rgba(208, 215, 222, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f6f8;
+}
+
+:root[data-theme='dark'] .button-secondary:hover {
+  border-color: rgba(0, 158, 219, 0.45);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='dark'] .field-input,
+:root[data-theme='dark'] .field-select,
+:root[data-theme='dark'] textarea {
+  border-color: rgba(208, 215, 222, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f6f8;
+}
+
+/*
+ * Native <select> dropdown lists often use a light surface; options inherit the
+ * select’s light text color and become invisible. Force readable option styling.
+ */
+html[data-theme='dark'] select option {
+  color: #0d1b2a;
+  background-color: #ffffff;
+}
+
+:root[data-theme='dark'] .field-input::placeholder,
+:root[data-theme='dark'] textarea::placeholder {
+  color: rgba(244, 246, 248, 0.55);
+}
+
+:root[data-theme='dark'] .dashboard-table tbody td {
+  border-color: rgba(208, 215, 222, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/*
+ * Map Tailwind slateAdmin text + surfaces inside .app-canvas to theme variables.
+ * Light: #0D1B2A on #FFFFFF / #F4F6F8. Dark: #F4F6F8 on translucent cards.
+ */
+.app-canvas .text-slateAdmin-950,
+.app-canvas .text-slateAdmin-900,
+.app-canvas .text-slateAdmin-800 {
+  color: var(--canvas-fg) !important;
+}
+
+.app-canvas .text-slateAdmin-700,
+.app-canvas .text-slateAdmin-600 {
+  color: var(--canvas-fg-muted) !important;
+}
+
+.app-canvas .text-slateAdmin-500,
+.app-canvas .text-slateAdmin-400 {
+  color: var(--canvas-fg-subtle) !important;
+}
+
+.app-canvas .bg-white,
+.app-canvas .bg-white\/80,
+.app-canvas .bg-white\/85,
+.app-canvas .bg-white\/90,
+.app-canvas .bg-white\/95 {
+  background-color: var(--canvas-surface) !important;
+}
+
+  .app-canvas .bg-slateAdmin-50 {
+    background-color: var(--canvas-surface-soft) !important;
+  }
+
+  .app-canvas .bg-slateAdmin-100 {
+    background-color: rgba(13, 27, 42, 0.06) !important;
+  }
+
+  html[data-theme='dark'] .app-canvas .bg-slateAdmin-100 {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .app-canvas .bg-slateAdmin-50\/50 {
+  background-color: rgba(244, 246, 248, 0.88) !important;
+}
+
+html[data-theme='dark'] .app-canvas .bg-slateAdmin-50\/50 {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.app-canvas .border-slateAdmin-200,
+.app-canvas .border-slateAdmin-100,
+.app-canvas .border-white\/80 {
+  border-color: var(--canvas-border) !important;
+}
+
+@media (max-width: 768px) {
+  .dashboard-table tbody td {
+    @apply px-4 py-4;
+  }
+}
