@@ -16,6 +16,7 @@ WebSocket endpoints:
 
 import json
 import logging
+import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,44 @@ from websocket_hub import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _build_allowed_origins() -> list[str]:
+    defaults = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:4173",
+        "http://localhost:4174",
+        "http://localhost:4175",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "https://localhost:5173",
+        "https://localhost:5174",
+        "https://localhost:5175",
+        "https://127.0.0.1:5173",
+        "https://127.0.0.1:5174",
+        "https://127.0.0.1:5175",
+    ]
+
+    extra_origins: list[str] = []
+    for env_name in ("FRONTEND_ORIGINS", "CORS_ALLOW_ORIGINS"):
+        raw_value = os.getenv(env_name, "")
+        if not raw_value:
+            continue
+        extra_origins.extend(
+            origin.strip() for origin in raw_value.split(",") if origin.strip()
+        )
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for origin in [*defaults, *extra_origins]:
+        if origin in seen:
+            continue
+        seen.add(origin)
+        deduped.append(origin)
+    return deduped
 
 
 def _tablet_dispense_error_message(message_code: str) -> str:
@@ -81,17 +120,7 @@ app = FastAPI(
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # doctor-portal-app (Vite default)
-        "http://localhost:5174",   # patient-tablet-app
-        "http://localhost:5175",   # admin-pharmacist-app
-        "http://localhost:4173",   # Vite preview mode
-        "http://localhost:4174",
-        "http://localhost:4175",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-    ],
+    allow_origins=_build_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
