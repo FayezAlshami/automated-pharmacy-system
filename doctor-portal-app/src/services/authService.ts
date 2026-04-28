@@ -32,12 +32,16 @@ const mockAuthService: AuthService = {
   },
   async signUp(payload) {
     await delay(950)
-    const exists = mockDoctorAccounts.some(
+    const emailExists = mockDoctorAccounts.some(
       (candidate) => candidate.email.toLowerCase() === payload.email.toLowerCase(),
     )
+    const phoneExists = mockDoctorAccounts.some((candidate) => candidate.phone === payload.phone)
 
-    if (exists) {
+    if (emailExists) {
       throw new Error('EMAIL_EXISTS')
+    }
+    if (phoneExists) {
+      throw new Error('PHONE_EXISTS')
     }
 
     return {
@@ -76,7 +80,12 @@ const apiAuthService: AuthService = {
       const msg = getAxiosDetailMessage(e, 'فشل إنشاء الحساب.')
       if (e && typeof e === 'object' && 'response' in e) {
         const status = (e as { response?: { status?: number } }).response?.status
-        if (status === 409) throw new Error('EMAIL_EXISTS')
+        if (status === 409) {
+          if (msg.includes('الهاتف') || msg.toLowerCase().includes('phone')) {
+            throw new Error('PHONE_EXISTS')
+          }
+          throw new Error('EMAIL_EXISTS')
+        }
       }
       throw new Error(msg)
     }

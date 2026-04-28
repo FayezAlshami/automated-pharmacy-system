@@ -21,12 +21,31 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from websocket_hub import (
+    RESULT_SERVER_ERROR,
     RESULT_SUCCESS,
     evaluate_order_eligibility_for_qr_operation,
     manager,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _tablet_dispense_error_message(message_code: str) -> str:
+    messages = {
+        "missing_order_reference": "تعذر تحديد العملية المطلوبة لبدء الصرف.",
+        "invalid_order_id": "مرجع العملية غير صالح.",
+        "order_not_found": "العملية غير موجودة في النظام.",
+        "order_already_dispensed": "تم صرف هذه العملية مسبقاً.",
+        "order_not_available": "العملية غير متاحة للصرف حالياً.",
+        "order_not_paid": "لا يمكن بدء الصرف قبل إتمام الدفع.",
+        "out_of_stock": "لا يمكن بدء الصرف لأن أحد الأدوية غير متوفر حالياً.",
+        "operation_available": "العملية متاحة للصرف.",
+        "server_error": "حدث خطأ في التحقق من العملية. يرجى مراجعة الصيدلي.",
+    }
+    return messages.get(
+        message_code,
+        "تعذر بدء عملية الصرف. يرجى مراجعة الصيدلي.",
+    )
 
 # استيراد routers الطبيب
 from routers.doctor import auth as doctor_auth
@@ -201,11 +220,16 @@ async def ws_esp32(websocket: WebSocket):
 
             elif msg_type in ("dispense_progress", "dispense_result"):
                 # نعيد توجيه الرسالة إلى الـ Tablet المرتبط بهذا job_id
-                job_id = msg.get("job_id")
-                if job_id is None:
+                raw_job_id = msg.get("job_id")
+                if raw_job_id is None:
+                    continue
+                try:
+                    job_id = int(raw_job_id)
+                except (TypeError, ValueError):
+                    logger.warning("[WS-ESP32] Invalid job_id in %s: %r", msg_type, raw_job_id)
                     continue
 
-                operation_id = manager.get_operation_id_for_job(int(job_id))
+                operation_id = manager.get_operation_id_for_job(job_id)
                 if not operation_id:
                     logger.warning("[WS-ESP32] No operation_id found for job_id=%s", job_id)
                     continue
@@ -213,11 +237,19 @@ async def ws_esp32(websocket: WebSocket):
                 await manager.send_to_tablet(operation_id, msg)
 
                 if msg_type == "dispense_result":
-                    result_code = int(msg.get("result_code", 0))
+                    raw_result_code = msg.get("result_code", 0)
+                    try:
+                        result_code = int(raw_result_code)
+                    except (TypeError, ValueError):
+                        logger.warning(
+                            "[WS-ESP32] Invalid result_code in dispense_result: %r",
+                            raw_result_code,
+                        )
+                        result_code = RESULT_SERVER_ERROR
                     if result_code == RESULT_SUCCESS:
                         manager.mark_order_status(operation_id, "success")
                     else:
-                        manager.mark_order_status(operation_id, "failed")
+                        manager.mark_order_status(operation_id, "rejected")
 
             else:
                 logger.warning("[WS-ESP32] Unknown message type: %s", msg_type)
@@ -252,11 +284,40 @@ async def ws_tablet(websocket: WebSocket, operation_id: str):
             logger.info("[WS-Tablet] op=%s type=%s", operation_id, msg_type)
 
             if msg_type == "start_dispense":
+                try:
+                    accepted, eligibility_message, order_id = (
+                        evaluate_order_eligibility_for_qr_operation(
+                            operation_id=operation_id,
+                        )
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "[WS-Tablet] eligibility check failed for op=%s: %s",
+                        operation_id,
+                        exc,
+                    )
+                    await manager.send_to_tablet(operation_id, {
+                        "type": "dispense_result",
+                        "job_id": -1,
+                        "result_code": RESULT_SERVER_ERROR,
+                        "message": _tablet_dispense_error_message("server_error"),
+                    })
+                    continue
+
+                if not accepted:
+                    await manager.send_to_tablet(operation_id, {
+                        "type": "dispense_result",
+                        "job_id": order_id if order_id and order_id > 0 else -1,
+                        "result_code": RESULT_SERVER_ERROR,
+                        "message": _tablet_dispense_error_message(eligibility_message),
+                    })
+                    continue
+
                 if not manager.esp32_connected:
                     await manager.send_to_tablet(operation_id, {
                         "type": "dispense_result",
                         "job_id": -1,
-                        "result_code": 218,
+                        "result_code": RESULT_SERVER_ERROR,
                         "message": "الجهاز غير متصل حالياً. يرجى التواصل مع الصيدلي.",
                     })
                     continue
@@ -266,7 +327,7 @@ async def ws_tablet(websocket: WebSocket, operation_id: str):
                     await manager.send_to_tablet(operation_id, {
                         "type": "dispense_result",
                         "job_id": -1,
-                        "result_code": 218,
+                        "result_code": RESULT_SERVER_ERROR,
                         "message": "تعذر بناء أمر الصرف. يرجى مراجعة الصيدلي.",
                     })
                     continue
@@ -276,7 +337,7 @@ async def ws_tablet(websocket: WebSocket, operation_id: str):
                     await manager.send_to_tablet(operation_id, {
                         "type": "dispense_result",
                         "job_id": command.get("job_id", -1),
-                        "result_code": 218,
+                        "result_code": RESULT_SERVER_ERROR,
                         "message": "تعذر الاتصال بالجهاز. يرجى مراجعة الصيدلي.",
                     })
 

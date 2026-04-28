@@ -5,6 +5,8 @@ POST /api/doctor/auth/register — تسجيل حساب جديد (status='pending
 GET  /api/doctor/profile/{id}  — جلب بيانات الطبيب
 """
 
+import sqlite3
+
 from fastapi import APIRouter, HTTPException
 from database import get_db
 from schemas.doctor import LoginRequest, SignupRequest, DoctorAccountResponse
@@ -51,33 +53,56 @@ def doctor_register(payload: SignupRequest):
     """
     db = get_db()
     try:
-        # التحقق من عدم تكرار البريد الإلكتروني
+        email = payload.email.strip().lower()
+        phone = payload.phone.strip()
+        full_name = payload.fullName.strip()
+        specialty = payload.specialty.strip()
+        clinic_name = payload.clinicName.strip()
+        license_number = payload.licenseNumber.strip()
+
+        if not phone:
+            raise HTTPException(status_code=400, detail="رقم الهاتف مطلوب")
+
+        # التحقق المبكر من التعارضات المفروضة في قاعدة البيانات
         existing = db.execute(
-            "SELECT doctor_id FROM doctors WHERE email = ?",
-            (payload.email.strip().lower(),)
-        ).fetchone()
-        if existing:
-            raise HTTPException(status_code=409, detail="البريد الإلكتروني مستخدم مسبقاً")
+            "SELECT email, phone FROM doctors WHERE email = ? OR phone = ?",
+            (email, phone),
+        ).fetchall()
+        for row in existing:
+            if row["email"] == email:
+                raise HTTPException(status_code=409, detail="البريد الإلكتروني مستخدم مسبقاً")
+            if row["phone"] == phone:
+                raise HTTPException(status_code=409, detail="رقم الهاتف مستخدم مسبقاً")
 
         # تشفير كلمة المرور وإدخال السجل
         hashed = hash_password(payload.password)
-        cursor = db.execute(
-            """INSERT INTO doctors
-               (fname, email, password, phone, role, specialty, clinic_name,
-                license_number, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, 'doctor', ?, ?, ?, 'pending',
-                       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
-            (
-                payload.fullName.strip(),
-                payload.email.strip().lower(),
-                hashed,
-                payload.phone.strip(),
-                payload.specialty.strip(),
-                payload.clinicName.strip(),
-                payload.licenseNumber.strip(),
+        try:
+            cursor = db.execute(
+                """INSERT INTO doctors
+                   (fname, email, password, phone, role, specialty, clinic_name,
+                    license_number, status, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, 'doctor', ?, ?, ?, 'pending',
+                           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
+                (
+                    full_name,
+                    email,
+                    hashed,
+                    phone,
+                    specialty,
+                    clinic_name,
+                    license_number,
+                )
             )
-        )
-        db.commit()
+            db.commit()
+        except sqlite3.IntegrityError as exc:
+            db.rollback()
+            error_text = str(exc)
+            if "doctors.email" in error_text:
+                raise HTTPException(status_code=409, detail="البريد الإلكتروني مستخدم مسبقاً")
+            if "doctors.phone" in error_text:
+                raise HTTPException(status_code=409, detail="رقم الهاتف مستخدم مسبقاً")
+            raise HTTPException(status_code=500, detail="تعذر إنشاء الحساب حالياً") from exc
+
         new_id = cursor.lastrowid
 
         # جلب السجل المدخل وإرجاعه

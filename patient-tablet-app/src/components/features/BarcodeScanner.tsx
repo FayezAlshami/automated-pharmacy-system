@@ -9,7 +9,35 @@ type BarcodeScannerProps = {
   className?: string
 }
 
-const SCAN_BOX = { width: 280, height: 200 }
+const SCAN_BOX = { width: 260, height: 260 }
+
+interface CameraCandidate {
+  id: string
+  label: string
+}
+
+function isLocalOrigin(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1'
+}
+
+function isSecureCameraContext() {
+  if (typeof window === 'undefined') return true
+  return window.isSecureContext || isLocalOrigin(window.location.hostname)
+}
+
+function sortCameraCandidates(cameras: CameraCandidate[]) {
+  const preferredKeywords = ['back', 'rear', 'environment', 'world']
+
+  return [...cameras].sort((a, b) => {
+    const aLabel = a.label.toLowerCase()
+    const bLabel = b.label.toLowerCase()
+    const aPreferred = preferredKeywords.some((keyword) => aLabel.includes(keyword))
+    const bPreferred = preferredKeywords.some((keyword) => bLabel.includes(keyword))
+
+    if (aPreferred === bPreferred) return 0
+    return aPreferred ? -1 : 1
+  })
+}
 
 export function BarcodeScanner({ onDecode, disabled, className }: BarcodeScannerProps) {
   const containerId = useId().replace(/:/g, '')
@@ -18,6 +46,7 @@ export function BarcodeScanner({ onDecode, disabled, className }: BarcodeScanner
   const [starting, setStarting] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const stoppedRef = useRef(false)
+  const decodedRef = useRef(false)
 
   const stopCamera = useCallback(async () => {
     const instance = html5Ref.current
@@ -37,6 +66,7 @@ export function BarcodeScanner({ onDecode, disabled, className }: BarcodeScanner
 
   useEffect(() => {
     stoppedRef.current = false
+    decodedRef.current = false
     return () => {
       stoppedRef.current = true
       void stopCamera()
@@ -47,12 +77,19 @@ export function BarcodeScanner({ onDecode, disabled, className }: BarcodeScanner
     if (disabled || starting) return
     setCameraError(null)
     setStarting(true)
+    decodedRef.current = false
     await stopCamera()
 
     const el = document.getElementById(regionId)
     if (!el) {
       setStarting(false)
       setCameraError('تعذر تهيئة منطقة العرض.')
+      return
+    }
+
+    if (!isSecureCameraContext()) {
+      setStarting(false)
+      setCameraError('تشغيل الكاميرا يتطلب فتح الصفحة عبر HTTPS أو من localhost.')
       return
     }
 
@@ -70,20 +107,56 @@ export function BarcodeScanner({ onDecode, disabled, className }: BarcodeScanner
       })
       html5Ref.current = html5
 
-      await html5.start(
-        { facingMode: 'environment' },
-        {
-          fps: 12,
-          qrbox: SCAN_BOX,
-          aspectRatio: 1.6,
-        },
-        (decodedText) => {
-          if (stoppedRef.current || disabled) return
-          void stopCamera()
-          onDecode(decodedText)
-        },
-        undefined,
-      )
+      const scannerConfig = {
+        fps: 12,
+        qrbox: SCAN_BOX,
+        aspectRatio: 1,
+      }
+
+      const handleDecoded = (decodedText: string) => {
+        if (stoppedRef.current || disabled || decodedRef.current) return
+        decodedRef.current = true
+        void stopCamera()
+        onDecode(decodedText)
+      }
+
+      const tryStart = async (
+        target: string | { facingMode: 'environment' | 'user' },
+      ) => {
+        await html5.start(target, scannerConfig, handleDecoded, undefined)
+      }
+
+      let lastError: unknown = null
+
+      try {
+        await tryStart({ facingMode: 'environment' })
+        return
+      } catch (error) {
+        lastError = error
+      }
+
+      try {
+        const cameras = await Html5Qrcode.getCameras()
+        const candidates = sortCameraCandidates(
+          cameras.map((camera) => ({
+            id: camera.id,
+            label: camera.label ?? '',
+          })),
+        )
+
+        for (const candidate of candidates) {
+          try {
+            await tryStart(candidate.id)
+            return
+          } catch (error) {
+            lastError = error
+          }
+        }
+      } catch (error) {
+        lastError = error
+      }
+
+      throw lastError ?? new Error('تعذر تشغيل الكاميرا.')
     } catch (e) {
       setCameraError(
         e instanceof Error ? e.message : 'تعذر تشغيل الكاميرا. تحقق من الأذونات.',

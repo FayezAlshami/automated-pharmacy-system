@@ -35,6 +35,12 @@ function resolveAuthError(error: unknown, language: PortalLanguage, fallback: st
       : 'This email is already in use.'
   }
 
+  if (error.message === 'PHONE_EXISTS') {
+    return language === 'ar'
+      ? 'رقم الهاتف مستخدم بالفعل.'
+      : 'This phone number is already in use.'
+  }
+
   return error.message
 }
 

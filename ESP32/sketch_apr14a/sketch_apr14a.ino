@@ -41,7 +41,7 @@ const char* WIFI_PASSWORD = "00000000";
 // مهم: لا تستخدم عنوان الـ VPN (مثل 10.2.x) — خُذ IPv4 من: ipconfig → "Wireless LAN adapter Wi-Fi"
 // محدّث حسب الشبكة الحالية:
 const char* WS_HOST = "10.239.108.178";
-const uint16_t WS_PORT = 8080;
+const uint16_t WS_PORT = 8000;
 
 // يجب أن يطابق مسار FastAPI في backend/main.py
 const char* WS_PATH = "/ws/esp32";
@@ -210,16 +210,29 @@ CabinetMotor* findCabinetById(int cabinetId) {
   return nullptr;
 }
 
+void waitWithWebSocketLoop(unsigned long durationMs) {
+  unsigned long startTime = millis();
+  while (millis() - startTime < durationMs) {
+    webSocket.loop();
+    delay(10);
+  }
+}
+
 // ============================================================
 // دوال إرسال رسائل WebSocket
 // ============================================================
 
-void sendJsonMessage(JsonDocument &doc) {
+bool sendJsonMessage(JsonDocument &doc) {
   String out;
   serializeJson(doc, out);
-  webSocket.sendTXT(out);
   Serial.println("WS SEND:");
   Serial.println(out);
+  if (!webSocket.isConnected()) {
+    Serial.println("WS SEND skipped: WebSocket not connected");
+    return false;
+  }
+  webSocket.sendTXT(out);
+  return true;
 }
 
 void sendQrOperationToServer(int orderId) {
@@ -251,6 +264,10 @@ void sendBusyToServer() {
   doc["result_code"] = RESULT_BUSY;
   doc["message"] = "controller_busy";
   sendJsonMessage(doc);
+}
+
+void sendBusyResultToServer(int jobId) {
+  sendDispenseResultToServer(jobId, RESULT_BUSY, "controller_busy");
 }
 
 void sendDispenseResultToServer(int jobId, int resultCode, const char* message) {
@@ -445,13 +462,13 @@ bool dispenseOneItemFromCabinet(CabinetMotor &cab) {
   while (true) {
     if (isIrTriggered(cab.irPin)) {
       stopCabinetMotor(cab);
-      delay(cabinetSettleDelayMs);
+      waitWithWebSocketLoop(cabinetSettleDelayMs);
 
       // رجوع للخلف حتى يعود المكان الأصلي
       // هنا نستخدم زمن رجوع ثابت
       // عدل reverseTimeMs حسب الميكانيك الحقيقي
       runCabinetBackward(cab);
-      delay(cab.reverseTimeMs);
+      waitWithWebSocketLoop(cab.reverseTimeMs);
       stopCabinetMotor(cab);
 
       return true;
@@ -462,6 +479,7 @@ bool dispenseOneItemFromCabinet(CabinetMotor &cab) {
       return false;
     }
 
+    webSocket.loop();
     delay(10);
   }
 }
@@ -493,7 +511,7 @@ bool dispenseCountFromCabinet(int cabinetId, int count) {
 
     sendProgressToServer(currentJobId, "cabinet_done_one", cabinetId, remaining);
 
-    delay(150);
+    waitWithWebSocketLoop(150);
   }
 
   return true;
@@ -519,6 +537,7 @@ bool runConveyorUntilDelivered() {
       return false;
     }
 
+    webSocket.loop();
     delay(10);
   }
 }
@@ -629,8 +648,10 @@ void parseIncomingCommand(const String &payload) {
   String type = doc["type"] | "";
 
   if (type == "dispense_command") {
+    int requestedJobId = doc["job_id"] | -1;
+
     if (systemBusy) {
-      sendBusyToServer();
+      sendBusyResultToServer(requestedJobId);
       return;
     }
 
@@ -638,7 +659,11 @@ void parseIncomingCommand(const String &payload) {
 
     if (currentJobId <= 0 || currentItemsCount <= 0) {
       Serial.println("Invalid dispense_command payload");
-      sendDispenseResultToServer(0, RESULT_SERVER_ERROR, "invalid_dispense_command");
+      sendDispenseResultToServer(
+        currentJobId > 0 ? currentJobId : requestedJobId,
+        RESULT_SERVER_ERROR,
+        "invalid_dispense_command"
+      );
       return;
     }
 

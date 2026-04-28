@@ -228,12 +228,27 @@ class ConnectionManager:
             for row in details:
                 cabinet_id = _machine_col_to_cabinet(row["machine_column"])
                 count = int(row["number_of_drug"] or 1)
+                if count <= 0:
+                    logger.warning(
+                        "[WS-Hub] Skipping invalid count=%s for operation_id=%s machine_column=%s",
+                        row["number_of_drug"],
+                        operation_id,
+                        row["machine_column"],
+                    )
+                    continue
                 # دمج العناصر التي لها نفس cabinet_id (جمع العدد)
                 existing = next((i for i in items if i["cabinet_id"] == cabinet_id), None)
                 if existing:
                     existing["count"] += count
                 else:
                     items.append({"cabinet_id": cabinet_id, "count": count})
+
+            if not items:
+                logger.error(
+                    "[WS-Hub] build_dispense_command: no dispense items for %s",
+                    operation_id,
+                )
+                return None
 
             return {
                 "type": "dispense_command",
@@ -247,18 +262,24 @@ class ConnectionManager:
 
     def mark_order_status(self, operation_id: str, status: str) -> None:
         """يُحدّث حالة الطلب في الداتابيس بعد استلام dispense_result."""
+        normalized_status = status
+        if status in ("failed", "cancelled"):
+            normalized_status = "rejected"
+        elif status not in ("pending", "success", "rejected", "review"):
+            normalized_status = "rejected"
+
         db = get_db()
         try:
             db.execute(
                 """UPDATE orders
                    SET status = ?, updated_at = CURRENT_TIMESTAMP
                    WHERE operation_id = ?""",
-                (status, operation_id),
+                (normalized_status, operation_id),
             )
             db.commit()
             logger.info(
                 "[WS-Hub] Order status updated to '%s' for operation_id=%s",
-                status, operation_id,
+                normalized_status, operation_id,
             )
         except Exception as exc:
             logger.error("[WS-Hub] Failed to update order status: %s", exc)

@@ -10,6 +10,37 @@ import { TabletShell } from '@/components/layout/TabletShell'
 import { appConfig } from '@/config/appConfig'
 import { useTabletFlowController } from '@/hooks/useTabletFlowController'
 
+function normalizeScannedCode(rawValue: string) {
+  const trimmed = rawValue.trim()
+  if (!trimmed) return ''
+
+  const operationMatch = trimmed.match(/\bOP-[A-Z0-9-]+\b/i)
+  if (operationMatch) {
+    return operationMatch[0].toUpperCase()
+  }
+
+  try {
+    const parsedUrl = new URL(trimmed)
+    const operationId =
+      parsedUrl.searchParams.get('operationId') ??
+      parsedUrl.searchParams.get('op') ??
+      parsedUrl.pathname.split('/').filter(Boolean).at(-1)
+
+    if (operationId) {
+      return normalizeScannedCode(operationId)
+    }
+  } catch {
+    // scanned value is not a URL, continue with raw text
+  }
+
+  const numberMatch = trimmed.match(/\b\d+\b/)
+  if (numberMatch && numberMatch[0] === trimmed) {
+    return numberMatch[0]
+  }
+
+  return trimmed
+}
+
 export function QrScanPage() {
   const navigate = useNavigate()
   const [manualCode, setManualCode] = useState('')
@@ -18,14 +49,14 @@ export function QrScanPage() {
 
   const handleDecoded = useCallback(
     async (text: string) => {
-      const success = await scanBarcode(text)
+      const success = await scanBarcode(normalizeScannedCode(text))
       navigate(success ? '/verification' : '/error')
     },
     [navigate, scanBarcode],
   )
 
   const submitManual = async () => {
-    const success = await scanBarcode(manualCode)
+    const success = await scanBarcode(normalizeScannedCode(manualCode))
     navigate(success ? '/verification' : '/error')
   }
 

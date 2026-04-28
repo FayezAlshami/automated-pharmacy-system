@@ -4,10 +4,10 @@ REM الافتراضي: API على 8080 — يتوافق مع CORS في backend/
 setlocal
 set "ROOT=%~dp0.."
 cd /d "%ROOT%"
-if not defined API_PORT set "API_PORT=8080"
+if not defined API_PORT set "API_PORT=8000"
 
 echo Starting backend on port %API_PORT% ...
-start "pharmacy-api" cmd /k "cd /d %ROOT%\backend && uvicorn main:app --reload --port %API_PORT%"
+start "pharmacy-api" cmd /k "cd /d %ROOT%\backend && uvicorn main:app --reload --host 0.0.0.0 --port %API_PORT%"
 
 timeout /t 2 /nobreak >nul
 
