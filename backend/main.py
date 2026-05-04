@@ -121,6 +121,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_allowed_origins(),
+    allow_origin_regex=r"^https?://[A-Za-z0-9.-]+:(4173|4174|4175|5173|5174|5175|8201|8202|8203)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
