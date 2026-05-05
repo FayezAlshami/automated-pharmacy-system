@@ -108,15 +108,6 @@ function mapDispensingError(message: string): FlowError {
   }
 }
 
-function createRealDispensingOnlyError(message: string): FlowError {
-  return {
-    kind: 'dispensing',
-    title: 'تعذر بدء الصرف الإلكتروني',
-    description: message,
-    retryStage: 'dispensing',
-  }
-}
-
 interface TabletFlowStoreState {
   sessionId: string
   currentStage: FlowStage
@@ -441,42 +432,13 @@ export const useTabletFlowStore = create<TabletFlowStoreState>((set, get) => ({
           })
           .catch(() => {
             dispWs.close()
-            const errorMessage =
-              'تعذر الاتصال بقناة الصرف الإلكترونية. تحقق من اتصال WebSocket مع الجهاز.'
-            set({
-              isBusy: false,
-              currentStage: 'dispensing',
-              dispensingState: {
-                status: 'failed',
-                message: errorMessage,
-                currentStepIndex: 0,
-                steps: buildSteps(0, 0),
-              },
-              error: createRealDispensingOnlyError(errorMessage),
-            })
-            resolve(false)
+            // WebSocket failed — fall back to REST
+            void _runDispensingRest(operationId, resolve)
           })
       })
     }
 
-    if (!appConfig.useMock) {
-      const errorMessage =
-        'الصرف الحقيقي يتطلب WebSocket مفعّلًا بين الواجهة والـ backend. لا يوجد fallback محلي لهذا المسار.'
-      set({
-        isBusy: false,
-        currentStage: 'dispensing',
-        dispensingState: {
-          status: 'failed',
-          message: errorMessage,
-          currentStepIndex: 0,
-          steps: buildSteps(0, 0),
-        },
-        error: createRealDispensingOnlyError(errorMessage),
-      })
-      return false
-    }
-
-    // ─── REST fallback (mock mode only) ─────────────────────────
+    // ─── REST fallback (mock mode or no wsBase) ──────────────────
     return _runDispensingRest(operationId, undefined)
 
     async function _runDispensingRest(

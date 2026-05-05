@@ -13,6 +13,7 @@ websocket_hub.py — مدير اتصالات WebSocket المركزي
 """
 
 import json
+import re
 import logging
 from typing import Dict, Optional, Tuple
 
@@ -99,29 +100,33 @@ RESULT_BUSY          = 216
 RESULT_SERVER_ERROR  = 218
 RESULT_CONVEYOR_FAIL = 219
 
-CABINET_MACHINE_COLUMN_MAP = {
-    "A1": 1,
-    "A2": 2,
-    "A3": 3,
-    "A4": 4,
-    "1": 1,
-    "2": 2,
-    "3": 3,
-    "4": 4,
-}
 
+def _machine_col_to_cabinet(machine_column: str) -> int:
+    """
+    تحويل machine_column (مثل 'A1', 'C3', 'L6') إلى cabinet_id يقبله ESP32.
 
-def _machine_col_to_cabinet(machine_column: str) -> Optional[int]:
+    منطق التحويل:
+    - الأعمدة الإلكترونية المعتمدة للاختبار: A1→1, A2→2, A3→3, A4→4
+    - نستخرج الرقم من نهاية السلسلة النصية.
+    - نضع القيمة بين 1 و4 (الـ ESP32 يملك 4 كبائن).
+    - مثال:  A1→1,  B2→2,  C3→3,  D4→4,  E5→1,  K3→3
     """
-    تحويل machine_column إلى cabinet_id صريح.
-    في وضع اختبار الإلكترون الحالي نعتمد فقط 4 مواقع:
-      A1 -> 1
-      A2 -> 2
-      A3 -> 3
-      A4 -> 4
-    """
-    key = str(machine_column or "").strip().upper()
-    return CABINET_MACHINE_COLUMN_MAP.get(key)
+    normalized = str(machine_column or "").strip().upper()
+    direct_map = {
+        "A1": 1,
+        "A2": 2,
+        "A3": 3,
+        "A4": 4,
+    }
+    if normalized in direct_map:
+        return direct_map[normalized]
+
+    match = re.search(r"(\d+)$", normalized)
+    if not match:
+        return 1
+    num = int(match.group(1))
+    # clamp to 1-4 using modulo, ensuring 4 maps to 4 (not 0)
+    return ((num - 1) % 4) + 1
 
 
 class ConnectionManager:
@@ -223,7 +228,7 @@ class ConnectionManager:
             order_id = order["order_id"]
 
             details = db.execute(
-                """SELECT d.drug_id, d.dname, d.machine_column, d.pin, do.number_of_drug
+                """SELECT d.machine_column, do.number_of_drug
                    FROM details_order do
                    JOIN drugs d ON d.drug_id = do.drug_id
                    WHERE do.order_id = ?""",
@@ -233,15 +238,6 @@ class ConnectionManager:
             items = []
             for row in details:
                 cabinet_id = _machine_col_to_cabinet(row["machine_column"])
-                if cabinet_id is None:
-                    logger.error(
-                        "[WS-Hub] Invalid machine_column=%s for drug_id=%s drug=%s in operation_id=%s",
-                        row["machine_column"],
-                        row["drug_id"],
-                        row["dname"],
-                        operation_id,
-                    )
-                    return None
                 count = int(row["number_of_drug"] or 1)
                 if count <= 0:
                     logger.warning(
