@@ -285,7 +285,7 @@ async def ws_esp32(websocket: WebSocket):
                 logger.warning("[WS-ESP32] Unknown message type: %s", msg_type)
 
     except WebSocketDisconnect:
-        manager.disconnect_esp32()
+        manager.disconnect_esp32(websocket)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

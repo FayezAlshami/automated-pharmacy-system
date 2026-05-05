@@ -18,6 +18,7 @@ import logging
 from typing import Dict, Optional, Tuple
 
 from fastapi import WebSocket
+from starlette.websockets import WebSocketState
 
 from database import get_db
 
@@ -139,32 +140,59 @@ class ConnectionManager:
         self._esp32: Optional[WebSocket] = None
         self._tablets: Dict[str, WebSocket] = {}
 
+    @staticmethod
+    def _is_socket_alive(ws: Optional[WebSocket]) -> bool:
+        if ws is None:
+            return False
+        return (
+            ws.client_state != WebSocketState.DISCONNECTED
+            and ws.application_state != WebSocketState.DISCONNECTED
+        )
+
     # ─── ESP32 ───────────────────────────────────────────────────
 
     async def connect_esp32(self, ws: WebSocket) -> None:
         await ws.accept()
+        previous = self._esp32
         self._esp32 = ws
-        logger.info("[WS-Hub] ESP32 connected")
+        logger.info(
+            "[WS-Hub] ESP32 connected socket_id=%s replaced_previous=%s",
+            id(ws),
+            previous is not None and previous is not ws,
+        )
 
-    def disconnect_esp32(self) -> None:
+    def disconnect_esp32(self, ws: Optional[WebSocket] = None) -> None:
+        if ws is not None and self._esp32 is not ws:
+            logger.info(
+                "[WS-Hub] Ignored stale ESP32 disconnect socket_id=%s active_socket_id=%s",
+                id(ws),
+                id(self._esp32) if self._esp32 else None,
+            )
+            return
         self._esp32 = None
-        logger.info("[WS-Hub] ESP32 disconnected")
+        logger.info(
+            "[WS-Hub] ESP32 disconnected socket_id=%s",
+            id(ws) if ws is not None else None,
+        )
 
     @property
     def esp32_connected(self) -> bool:
-        return self._esp32 is not None
+        return self._is_socket_alive(self._esp32)
 
     async def send_to_esp32(self, message: dict) -> bool:
         """يُرسل رسالة JSON إلى ESP32. يُعيد False إذا لم يكن متصلاً."""
-        if not self._esp32:
-            logger.warning("[WS-Hub] Tried to send to ESP32 but it is not connected")
+        ws = self._esp32
+        if not self._is_socket_alive(ws):
+            logger.warning(
+                "[WS-Hub] Tried to send to ESP32 but no active socket is registered"
+            )
             return False
         try:
-            await self._esp32.send_text(json.dumps(message, ensure_ascii=False))
+            await ws.send_text(json.dumps(message, ensure_ascii=False))
             return True
         except Exception as exc:
             logger.error("[WS-Hub] Failed to send to ESP32: %s", exc)
-            self._esp32 = None
+            self.disconnect_esp32(ws)
             return False
 
     # ─── Tablet ──────────────────────────────────────────────────
