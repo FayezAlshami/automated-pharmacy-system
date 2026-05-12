@@ -9,4 +9,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    host: '0.0.0.0',
+    allowedHosts: ['lol.fayezalshami.com'],
+    hmr: {
+      protocol: 'wss',
+      host: 'lol.fayezalshami.com',
+      clientPort: 443,
+    },
+  },
 })
