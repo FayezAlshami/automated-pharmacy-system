@@ -22,17 +22,36 @@ function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, '')
 }
 
+function buildWindowHttpUrl(fallbackPath: string) {
+  return `${trimTrailingSlash(window.location.origin)}${fallbackPath}`
+}
+
+function buildWindowWsUrl(fallbackPath: string) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}${fallbackPath}`
+}
+
+function shouldPreferWindowOrigin(baseUrl: URL) {
+  if (typeof window === 'undefined') return false
+  if (window.location.protocol !== 'https:') return false
+
+  return baseUrl.host !== window.location.host
+}
+
 function normalizeHttpBaseUrl(rawValue: string | undefined, fallbackPath: string) {
   const configuredValue = rawValue?.trim()
   const windowOrigin = getWindowOrigin()
 
   if (!configuredValue) {
-    if (windowOrigin) return `${trimTrailingSlash(windowOrigin)}${fallbackPath}`
+    if (windowOrigin) return buildWindowHttpUrl(fallbackPath)
     return LOCAL_API_FALLBACK
   }
 
   try {
     const baseUrl = windowOrigin ? new URL(configuredValue, windowOrigin) : new URL(configuredValue)
+    if (shouldPreferWindowOrigin(baseUrl)) {
+      return buildWindowHttpUrl(fallbackPath)
+    }
     if (typeof window !== 'undefined' && window.location.protocol === 'https:' && baseUrl.protocol === 'http:') {
       baseUrl.protocol = 'https:'
     }
@@ -47,8 +66,7 @@ function normalizeWsBaseUrl(rawValue: string | undefined, fallbackPath: string) 
 
   if (!configuredValue) {
     if (typeof window !== 'undefined') {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      return `${protocol}//${window.location.host}${fallbackPath}`
+      return buildWindowWsUrl(fallbackPath)
     }
     return LOCAL_WS_FALLBACK
   }
@@ -58,6 +76,9 @@ function normalizeWsBaseUrl(rawValue: string | undefined, fallbackPath: string) 
       configuredValue,
       typeof window !== 'undefined' ? window.location.origin : undefined,
     )
+    if (shouldPreferWindowOrigin(baseUrl)) {
+      return buildWindowWsUrl(fallbackPath)
+    }
     if (typeof window !== 'undefined' && window.location.protocol === 'https:' && baseUrl.protocol === 'ws:') {
       baseUrl.protocol = 'wss:'
     }
